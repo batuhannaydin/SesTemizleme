@@ -23,6 +23,17 @@ def wav_dosyasi_okuma(path):
     except wave.Error as e:
         raise wave.Error(f"{path} dosyasi bulundu fakat okunurken hata meydana geldi: {e}")
 
+def sesi_kaydet(path, orneklemeler, ornekleme_orani):
+    try:
+        orneklemeler_int16 = (orneklemeler * 32767).astype(np.int16)
+        with wave.open(path, 'wb') as ses_dosyasi:
+            ses_dosyasi.setnchannels(1)
+            ses_dosyasi.setsampwidth(2)
+            ses_dosyasi.setframerate(ornekleme_orani)
+            ses_dosyasi.writeframes(orneklemeler_int16.tobytes())
+    except Exception as e:
+        raise Exception(f"{path} dosyasina yazarken hata meydana geldi: {e}")
+
 
 
 

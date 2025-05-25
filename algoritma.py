@@ -2,6 +2,7 @@ import wave
 import numpy as np
 import struct
 import math 
+import matplotlib.pyplot as plt
 
 def wav_dosyasi_okuma(path):
     try:
@@ -69,8 +70,69 @@ def istft(stft_matrix, pencere_boyutu = 2048, kaydirma_sayisi = 512):
         ses_sinyali[baslangic:bitis] += cerceve * pencere[:len(cerceve)]
     return ses_sinyali
 
+def medyan_filtreleme(matrix, kernel_boyutu):
+    satir, sutun = matrix.shape
+    kernel_yukseklik, kernel_genislik = kernel_boyutu
+    dolgu_yukseklik, dolgu_genislik = kernel_yukseklik // 2, kernel_genislik // 2
+    dolgu_eklenmis_hali = np.pad(matrix, ((dolgu_yukseklik, dolgu_yukseklik), (dolgu_genislik, dolgu_genislik)), mode='edge')
+    result = np.zeros_like(matrix)
+    for i in range(satir):
+        for j in range(sutun):
+            pencere = dolgu_eklenmis_hali[i:i + kernel_yukseklik, j:j + kernel_genislik]
+            result[i, j] = np.median(pencere)
+    return result
 
+def main():
+    girdi_dosya = "kayit1.wav"
+    cikti_dosya = "temizlenmis_kayit.wav"
+    pencere_boyutu = 2048
+    kaydirma_sayisi = 512
+    kernel_boyutu = (1, 5)
 
+    y, sr = wav_dosyasi_okuma(girdi_dosya)
+    print(f"Orijinal (Temizlenmemiş / Ham sinyal uzunlugu: {len(y)} örnek ({len(y) / sr:.2f} saniye))")
+
+    S_full = stft(y, pencere_boyutu, kaydirma_sayisi)
+    faz = np.angle(S_full)
+    genlik = np.abs(S_full)
+
+    gurultu_gucu = np.mean(genlik[:, :int(sr * 0.1)], axis = 1)
+
+    maske = genlik > gurultu_gucu[:, None]
+    maske = maske.astype(float)
+    maske = medyan_filtreleme(maske, kernel_boyutu = kernel_boyutu)
+
+    S_clean = genlik * maske
+
+    S_clean = S_clean * np.exp(1j * faz)
+
+    y_clean = istft(S_clean, pencere_boyutu, kaydirma_sayisi)
+    print(f"Temizlenmiş sinyal uzunluğu: {len(y_clean)} örnek ({len(y_clean) / sr:.2f} saniye)")
+    
+    sesi_kaydet(cikti_dosya, y_clean, sr)
+    print(f"Temizlenmiş sinyal kaydedildi: '{cikti_dosya}'")
+    print(f"Orijinal ve temizlenmiş sinyaller arasındaki fark: {len(y) - len(y_clean)} örnek")
+    print("İşlem tamamlandı.")
+
+    plt.figure(figsize=(14, 6))
+    plt.subplot(2, 1, 1)
+    plt.plot(y, color = 'gray', label='Orijinal Sinyal')
+    plt.title('Orijinal Sinyal')
+    plt.xlabel('Örnek')
+    plt.ylabel('Genlik')
+    plt.legend()
+
+    plt.subplot(2, 1, 2)
+    plt.plot(y_clean, color = 'blue', label='Temizlenmiş Sinyal')
+    plt.title('Temizlenmiş Sinyal')
+    plt.xlabel('Örnek')
+    plt.ylabel('Genlik')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+if __name__ == "__main__":
+    main()
 
 
 

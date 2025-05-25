@@ -1,3 +1,15 @@
+"""
+Not 1: Kodu çalıştırmadan önce lütfen benioku.txt dosyasına bakınız
+Bu kod, wav uzantılı bir ses dosyasını okur, gürültüyü temizler ve temizlenmiş ses dosyasını kaydeder.
+
+Not 2: Bu kod, Python 3.7 ve üzeri sürümlerde çalıştırılmalıdır
+
+Not 3: Sadece wav dosyasını okuma, bazı hesaplamalar ve grafiksel gösterim için kütüphaneler kullanılmıştır
+Algoritma yazımında hiçbir hazır kütüphaneden yararlanılmamıştır
+
+Ortalama execute süresi : 10 - 11 sn
+"""
+
 import wave
 import numpy as np
 import struct
@@ -5,6 +17,11 @@ import math
 import matplotlib.pyplot as plt
 
 def wav_dosyasi_okuma(path):
+    """
+    Verilen path üzerinden bir wav dosyasını okur ve ses örnekleri ile örnekleme oranını döndürür.
+    Ayrıca hata yakalama işlemini de yapar
+    """
+
     try:
         with wave.open(path, 'rb') as ses_dosyasi:
             ornekleme_oran = ses_dosyasi.getframerate()
@@ -25,6 +42,10 @@ def wav_dosyasi_okuma(path):
         raise wave.Error(f"{path} dosyasi bulundu fakat okunurken hata meydana geldi: {e}")
 
 def sesi_kaydet(path, orneklemeler, ornekleme_orani):
+    """
+    Verilen ses örneklerini ve örnekleme oranını kullanarak bir wav dosyası olarak kaydeder
+    """
+
     try:
         orneklemeler_int16 = (orneklemeler * 32767).astype(np.int16)
         with wave.open(path, 'wb') as ses_dosyasi:
@@ -36,6 +57,11 @@ def sesi_kaydet(path, orneklemeler, ornekleme_orani):
         raise Exception(f"{path} dosyasina yazarken hata meydana geldi: {e}")
 
 def stft(ses_sinyali, pencere_boyutu = 2048, kaydirma_sayisi = 512):
+    """
+    Kısa Süreli Fourier Dönüşümünü (STFT) hesaplar
+    STFT algoritması sonucunda kompleks sayılardan oluşan matris döndürülür 
+    """
+
     pencere_boyutu = min(pencere_boyutu, len(ses_sinyali))
     pencere = np.hanning(pencere_boyutu)
     cerceve_sayisi = 1 + int((len(ses_sinyali) - pencere_boyutu) / kaydirma_sayisi)
@@ -55,6 +81,9 @@ def stft(ses_sinyali, pencere_boyutu = 2048, kaydirma_sayisi = 512):
     return stft_matrix
 
 def istft(stft_matrix, pencere_boyutu = 2048, kaydirma_sayisi = 512):
+    """
+    Kısa Süreli Ters Fourier Dönüşümünü (ISTFT) kullanarak ses sinyalini geri oluşturur    
+    """
     pencere = np.hanning(pencere_boyutu)
     cerceve_sayisi = stft_matrix.shape[1]
     ses_sinyali_length = (cerceve_sayisi - 1) * kaydirma_sayisi + pencere_boyutu
@@ -71,6 +100,9 @@ def istft(stft_matrix, pencere_boyutu = 2048, kaydirma_sayisi = 512):
     return ses_sinyali
 
 def medyan_filtreleme(matrix, kernel_boyutu):
+    """
+    2 boyutlu bir matris üzerinde medyan filtresi uygular
+    """
     satir, sutun = matrix.shape
     kernel_yukseklik, kernel_genislik = kernel_boyutu
     dolgu_yukseklik, dolgu_genislik = kernel_yukseklik // 2, kernel_genislik // 2
@@ -83,37 +115,46 @@ def medyan_filtreleme(matrix, kernel_boyutu):
     return result
 
 def main():
+    # Parametreler
     girdi_dosya = "kayit1.wav"
     cikti_dosya = "temizlenmis_kayit.wav"
     pencere_boyutu = 2048
     kaydirma_sayisi = 512
     kernel_boyutu = (1, 5)
 
+    # ham ses kaydını okuma
     y, sr = wav_dosyasi_okuma(girdi_dosya)
     print(f"Orijinal (Temizlenmemiş / Ham sinyal uzunlugu: {len(y)} örnek ({len(y) / sr:.2f} saniye))")
 
-    S_full = stft(y, pencere_boyutu, kaydirma_sayisi)
-    faz = np.angle(S_full)
-    genlik = np.abs(S_full)
+    # ham ses kaydının STFT'sini hesaplama
+    ham_spektrum = stft(y, pencere_boyutu, kaydirma_sayisi)
+    faz = np.angle(ham_spektrum)
+    genlik = np.abs(ham_spektrum)
 
     gurultu_gucu = np.mean(genlik[:, :int(sr * 0.1)], axis = 1)
 
+    # maske olusturma
     maske = genlik > gurultu_gucu[:, None]
     maske = maske.astype(float)
     maske = medyan_filtreleme(maske, kernel_boyutu = kernel_boyutu)
 
-    S_clean = genlik * maske
+    # Temiz spektrum
+    temiz_spektrum = genlik * maske
 
-    S_clean = S_clean * np.exp(1j * faz)
+    # faz bilgisini geri ekleme
+    temiz_spektrum = temiz_spektrum * np.exp(1j * faz)
 
-    y_clean = istft(S_clean, pencere_boyutu, kaydirma_sayisi)
-    print(f"Temizlenmiş sinyal uzunluğu: {len(y_clean)} örnek ({len(y_clean) / sr:.2f} saniye)")
+    # ISTFT kullanarak sesi geri oluşturma
+    temiz_sinyal = istft(temiz_spektrum, pencere_boyutu, kaydirma_sayisi)
+    print(f"Temizlenmiş sinyal uzunluğu: {len(temiz_sinyal)} örnek ({len(temiz_sinyal) / sr:.2f} saniye)")
     
-    sesi_kaydet(cikti_dosya, y_clean, sr)
+    # Temizlenmiş sesi kaydetme
+    sesi_kaydet(cikti_dosya, temiz_sinyal, sr)
     print(f"Temizlenmiş sinyal kaydedildi: '{cikti_dosya}'")
-    print(f"Orijinal ve temizlenmiş sinyaller arasındaki fark: {len(y) - len(y_clean)} örnek")
+    print(f"Orijinal ve temizlenmiş sinyaller arasındaki fark: {len(y) - len(temiz_sinyal)} örnek")
     print("İşlem tamamlandı.")
 
+    # Orijinal ve temizlenmiş sinyal grafiklerini çizdirme
     plt.figure(figsize=(14, 6))
     plt.subplot(2, 1, 1)
     plt.plot(y, color = 'gray', label='Orijinal Sinyal')
@@ -123,7 +164,7 @@ def main():
     plt.legend()
 
     plt.subplot(2, 1, 2)
-    plt.plot(y_clean, color = 'blue', label='Temizlenmiş Sinyal')
+    plt.plot(temiz_sinyal, color = 'blue', label='Temizlenmiş Sinyal')
     plt.title('Temizlenmiş Sinyal')
     plt.xlabel('Örnek')
     plt.ylabel('Genlik')

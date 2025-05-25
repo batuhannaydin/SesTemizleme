@@ -1,5 +1,5 @@
 """
-Not 1: Kodu çalıştırmadan önce lütfen benioku.txt dosyasına bakınız
+Not 1: Kodu çalıştırmadan önce lütfen README.txt dosyasına bakınız
 Bu kod, wav uzantılı bir ses dosyasını okur, gürültüyü temizler ve temizlenmiş ses dosyasını kaydeder.
 
 Not 2: Bu kod, Python 3.7 ve üzeri sürümlerde çalıştırılmalıdır
